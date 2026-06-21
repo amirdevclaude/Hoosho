@@ -16,6 +16,13 @@ class IsGroupChat(BaseFilter):
         return message.chat.type in ("group", "supergroup")
 
 
+class IsPrivateChat(BaseFilter):
+    """Allow the update only inside a private (1-on-1) chat with the bot."""
+
+    async def __call__(self, message: Message) -> bool:
+        return message.chat.type == "private"
+
+
 class IsAdminOrOwner(BaseFilter):
     """Allow the update only if the sender is a Telegram chat admin/owner OR
     their user_id is listed in the bot's ADMIN_IDS config."""
@@ -42,10 +49,3 @@ class HasReply(BaseFilter):
 
     async def __call__(self, message: Message) -> bool:
         return message.reply_to_message is not None
-
-
-class IsPrivateChat(BaseFilter):
-    """Allow the update only inside a private (1-on-1) chat with the bot."""
-
-    async def __call__(self, message: Message) -> bool:
-        return message.chat.type == "private"
