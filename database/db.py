@@ -242,3 +242,15 @@ async def get_recent_history(chat_id: int, user_id: int, limit: int = 5) -> List
     await cursor.close()
     rows = list(reversed(rows))
     return [(r["role"], r["content"]) for r in rows]
+
+
+async def clear_history(chat_id: int, user_id: int) -> None:
+    """Delete all stored chat_history rows for this (chat_id, user_id) pair.
+    Used by the /reset command to start a fresh conversation."""
+    conn = _require_conn()
+    async with _lock:
+        await conn.execute(
+            "DELETE FROM chat_history WHERE chat_id = ? AND user_id = ?",
+            (chat_id, user_id),
+        )
+        await conn.commit()
