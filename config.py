@@ -63,8 +63,8 @@ class Config:
     repeat_message_threshold: int = 3
 
     # AI tuning
-    groq_model: str = "llama3-8b-8192"
-    gemini_model: str = "gemini-1.5-flash"
+    groq_model: str = "openai/gpt-oss-20b"
+    gemini_model: str = "gemini-2.5-flash-lite"
     groq_timeout_seconds: int = 8
     ai_cache_ttl_seconds: int = 60
     history_limit: int = 5
