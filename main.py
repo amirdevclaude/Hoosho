@@ -14,7 +14,7 @@ from aiogram.enums import ParseMode
 
 import database.db as db
 from config import config
-from handlers import admin, chat, events
+from handlers import admin, chat, events, private
 from middlewares.rate_limit import RateLimitMiddleware
 from services.ai_router import AIRouter
 from services.gemini_service import GeminiService
@@ -80,7 +80,7 @@ async def main() -> None:
 
     dp.include_router(admin.router)
     dp.include_router(events.router)
-    dp.include_router(chat.router)
+    dp.include_router(private.router)
 
     stop_event = asyncio.Event()
 
