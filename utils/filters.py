@@ -42,3 +42,10 @@ class HasReply(BaseFilter):
 
     async def __call__(self, message: Message) -> bool:
         return message.reply_to_message is not None
+
+
+class IsPrivateChat(BaseFilter):
+    """Allow the update only inside a private (1-on-1) chat with the bot."""
+
+    async def __call__(self, message: Message) -> bool:
+        return message.chat.type == "private"
