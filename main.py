@@ -19,6 +19,8 @@ from middlewares.rate_limit import RateLimitMiddleware
 from services.ai_router import AIRouter
 from services.gemini_service import GeminiService
 from services.groq_service import GroqService
+from services.intent_service import IntentService
+from services.reminder_task import reminder_loop
 
 logging.basicConfig(
     level=logging.INFO,
@@ -27,7 +29,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def build_ai_router() -> AIRouter:
+def build_services():
     groq_service = None
     if config.groq_api_key:
         groq_service = GroqService(
@@ -47,11 +49,15 @@ def build_ai_router() -> AIRouter:
     else:
         logger.warning("GEMINI_API_KEY not set, Gemini provider disabled")
 
-    return AIRouter(
+    ai_router = AIRouter(
         groq_service=groq_service,
         gemini_service=gemini_service,
         cache_ttl_seconds=config.ai_cache_ttl_seconds,
     )
+
+    intent_service = IntentService(groq_service=groq_service)
+
+    return ai_router, intent_service
 
 
 async def main() -> None:
@@ -64,7 +70,7 @@ async def main() -> None:
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
 
-    ai_router = build_ai_router()
+    ai_router, intent_service = build_services()
 
     rate_limit_middleware = RateLimitMiddleware(
         max_messages_per_window=config.max_messages_per_window,
@@ -74,7 +80,7 @@ async def main() -> None:
         repeat_message_threshold=config.repeat_message_threshold,
     )
 
-    dp = Dispatcher(ai_router=ai_router)
+    dp = Dispatcher(ai_router=ai_router, intent_service=intent_service)
 
     dp.message.middleware(rate_limit_middleware)
 
@@ -98,22 +104,27 @@ async def main() -> None:
             try:
                 loop.add_signal_handler(sig, _handle_shutdown_signal)
             except NotImplementedError:
-                # add_signal_handler is not available on some platforms (e.g. Windows)
                 pass
 
     polling_task = asyncio.create_task(dp.start_polling(bot))
+    reminder_task = asyncio.create_task(reminder_loop(bot))
     stop_task = asyncio.create_task(stop_event.wait())
 
     done, pending = await asyncio.wait(
-        {polling_task, stop_task}, return_when=asyncio.FIRST_COMPLETED
+        {polling_task, reminder_task, stop_task}, return_when=asyncio.FIRST_COMPLETED
     )
 
     if stop_task in done:
         logger.info("Stopping polling...")
         await dp.stop_polling()
         polling_task.cancel()
+        reminder_task.cancel()
         try:
             await polling_task
+        except asyncio.CancelledError:
+            pass
+        try:
+            await reminder_task
         except asyncio.CancelledError:
             pass
 
