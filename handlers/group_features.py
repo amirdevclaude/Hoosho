@@ -40,7 +40,6 @@ _is_admin_check = IsAdminOrOwner(config.admin_ids)
 @router.message(F.text)
 async def log_group_message(
     message: Message,
-    ai_router: AIRouter,
 ) -> None:
     if message.from_user is None or message.from_user.is_bot:
         return
@@ -112,7 +111,7 @@ async def cmd_summary(message: Message, ai_router: AIRouter) -> None:
     logs = await db.get_recent_group_log(message.chat.id, limit=50)
 
     if not logs or len(logs) < 5:
-        await message.reply("📭 پیام‌های کافی برای خلاصه کردن وجود نداره (حداقل ۵ تا).")
+        await message.reply("🛭 پیام‌های کافی برای خلاصه کردن وجود نداره (حداقل ۵ تا).")
         return
 
     transcript = "\n".join(f"{name}: {content}" for name, content in logs)
@@ -140,7 +139,7 @@ async def cmd_remind(message: Message, command: CommandObject) -> None:
     args = (command.args or "").strip()
     if not args:
         await message.reply(
-            "❗️ فرمت درست:\n"
+            "❎️ فرمت درست:\n"
             "<code>/remind 30m متن یادآور</code>\n"
             "<code>/remind 2h سر زدن به پروژه</code>\n"
             "<code>/remind 1d جلسه با تیم</code>",
@@ -151,7 +150,7 @@ async def cmd_remind(message: Message, command: CommandObject) -> None:
     parts = args.split(None, 1)
     if len(parts) < 2:
         await message.reply(
-            "❗️ متن یادآور رو هم بنویس.\n"
+            "❎️ متن یادآور رو هم بنویس.\n"
             "مثال: <code>/remind 1h بررسی پروژه</code>",
             parse_mode="HTML",
         )
@@ -162,14 +161,14 @@ async def cmd_remind(message: Message, command: CommandObject) -> None:
 
     if delta is None:
         await message.reply(
-            "❗️ فرمت زمان نادرسته.\n"
-            "مثال‌های درست: <code>30m</code>، <code>2h</code>، <code>1d</code>",
+            "❎️ فرمت زمان نادرسته.\n"
+            "مثال‌های درست: <code>30m</code>ی ۲h</code>ی <code>1d</code>",
             parse_mode="HTML",
         )
         return
 
     if delta > timedelta(days=30):
-        await message.reply("❗️ حداکثر مدت یادآور ۳۰ روزه.")
+        await message.reply("❎️ حداکثر مدت یادآور ۳۰ روزه.")
         return
 
     due_at = utc_now() + delta
@@ -184,5 +183,5 @@ async def cmd_remind(message: Message, command: CommandObject) -> None:
     await message.reply(
         f"⏰ یادآور ثبت شد!\n"
         f"📝 موضوع: {reminder_text}\n"
-        f"🕐 بعد از: {format_duration(delta)}",
+        f"📋 بعد از: {format_duration(delta)}",
     )

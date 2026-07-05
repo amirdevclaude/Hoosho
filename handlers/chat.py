@@ -7,6 +7,8 @@ AI replies ONLY when:
 - The bot is @mentioned in the message
 - The message is a reply to one of the bot's own messages
 - The message starts with one of the configured TRIGGER_KEYWORDS
+
+Now with caching of bot info and better error handling.
 """
 
 import logging
@@ -26,6 +28,8 @@ logger = logging.getLogger(__name__)
 
 router = Router(name="chat")
 router.message.filter(IsGroupChat())
+
+_bot_cache = {"username": None, "id": None}
 
 
 def _strip_mention(text: str, bot_username: str) -> str:
@@ -91,11 +95,21 @@ async def handle_ai_trigger(
     if not text.strip():
         return
 
-    bot_user = await message.bot.get_me()
-    bot_username = bot_user.username or ""
+    # Cache bot info to avoid repeated API calls
+    if _bot_cache["username"] is None or _bot_cache["id"] is None:
+        try:
+            bot_user = await message.bot.get_me()
+            _bot_cache["username"] = bot_user.username or ""
+            _bot_cache["id"] = bot_user.id
+        except Exception as exc:
+            logger.error("Failed to get bot info: %s", exc)
+            return
+
+    bot_username = _bot_cache["username"]
+    bot_id = _bot_cache["id"]
 
     mentioned = await _is_bot_mentioned(message, bot_username)
-    replied_to_bot = _is_reply_to_bot(message, bot_user.id)
+    replied_to_bot = _is_reply_to_bot(message, bot_id)
     has_trigger = _starts_with_trigger(text)
 
     if not (mentioned or replied_to_bot or has_trigger):
