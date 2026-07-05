@@ -1,6 +1,7 @@
 """
 database/db.py
 Async SQLite data access layer built on aiosqlite.
+Now with cleanup functions.
 """
 
 import asyncio
@@ -300,7 +301,21 @@ async def clear_history(chat_id: int, user_id: int) -> None:
         await conn.commit()
 
 
-# ────────────────────────────────────────────────────────────
+async def delete_old_history(cutoff_datetime_iso: str) -> int:
+    """Delete chat history older than cutoff_datetime."""
+    conn = _require_conn()
+    async with _lock:
+        cursor = await conn.execute(
+            "DELETE FROM chat_history WHERE created_at < ?",
+            (cutoff_datetime_iso,),
+        )
+        await conn.commit()
+        deleted = cursor.rowcount
+        await cursor.close()
+        return deleted
+
+
+# ───────────────────────────────────────────────���────────────
 # Group settings
 # ────────────────────────────────────────────────────────────
 
@@ -507,3 +522,17 @@ async def get_recent_group_log(chat_id: int, limit: int = 50) -> List[Tuple[str,
     await cursor.close()
     rows = list(reversed(rows))
     return [(r["user_name"], r["content"]) for r in rows]
+
+
+async def delete_old_group_logs(cutoff_datetime_iso: str) -> int:
+    """Delete group logs older than cutoff_datetime."""
+    conn = _require_conn()
+    async with _lock:
+        cursor = await conn.execute(
+            "DELETE FROM group_log WHERE created_at < ?",
+            (cutoff_datetime_iso,),
+        )
+        await conn.commit()
+        deleted = cursor.rowcount
+        await cursor.close()
+        return deleted

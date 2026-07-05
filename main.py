@@ -21,6 +21,7 @@ from services.gemini_service import GeminiService
 from services.groq_service import GroqService
 from services.intent_service import IntentService
 from services.reminder_task import reminder_loop
+from services.cleanup_service import cleanup_loop
 
 logging.basicConfig(
     level=logging.INFO,
@@ -108,10 +109,11 @@ async def main() -> None:
 
     polling_task = asyncio.create_task(dp.start_polling(bot))
     reminder_task = asyncio.create_task(reminder_loop(bot))
+    cleanup_task = asyncio.create_task(cleanup_loop())
     stop_task = asyncio.create_task(stop_event.wait())
 
     done, pending = await asyncio.wait(
-        {polling_task, reminder_task, stop_task}, return_when=asyncio.FIRST_COMPLETED
+        {polling_task, reminder_task, cleanup_task, stop_task}, return_when=asyncio.FIRST_COMPLETED
     )
 
     if stop_task in done:
@@ -119,12 +121,17 @@ async def main() -> None:
         await dp.stop_polling()
         polling_task.cancel()
         reminder_task.cancel()
+        cleanup_task.cancel()
         try:
             await polling_task
         except asyncio.CancelledError:
             pass
         try:
             await reminder_task
+        except asyncio.CancelledError:
+            pass
+        try:
+            await cleanup_task
         except asyncio.CancelledError:
             pass
 
