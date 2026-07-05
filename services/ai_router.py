@@ -2,14 +2,18 @@
 services/ai_router.py
 Routes AI requests to Groq first, falling back to Gemini on any failure.
 Includes a simple 60 second in-memory cache for identical prompts.
+Now with retry logic and metrics collection.
 """
 
+import asyncio
 import logging
 import time
 from typing import Dict, List, Optional, Tuple
 
 from services.gemini_service import GeminiService
 from services.groq_service import GroqService
+from services.metrics import metrics
+from config import config
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +64,7 @@ class AIRouter:
         prompt: str,
         history: Optional[List[Tuple[str, str]]] = None,
     ) -> str:
-        """Get an AI response for `prompt`, trying Groq then Gemini.
+        """Get an AI response for `prompt`, trying Groq with retries then Gemini.
 
         history is a list of (role, content) tuples, oldest first, role is
         "user" or "assistant". Returns the final fallback Persian message
@@ -72,22 +76,44 @@ class AIRouter:
         cached = self._get_cached(key)
         if cached is not None:
             logger.info("AI cache hit")
+            metrics.ai_requests += 1
             return cached
 
+        start_time = time.time()
+        
+        # Try Groq with retries
         if self._groq is not None:
-            try:
-                text = await self._groq.get_response(prompt, history)
-                self._set_cached(key, text)
-                return text
-            except Exception as exc:
-                logger.warning("Groq failed, falling back to Gemini: %s", exc)
+            for attempt in range(config.ai_max_retries):
+                try:
+                    logger.info(f"Attempting Groq request (attempt {attempt + 1}/{config.ai_max_retries})")
+                    text = await self._groq.get_response(prompt, history)
+                    latency_ms = (time.time() - start_time) * 1000
+                    metrics.record_ai_request(latency_ms, provider="groq")
+                    self._set_cached(key, text)
+                    return text
+                except asyncio.TimeoutError:
+                    logger.warning(f"Groq timeout on attempt {attempt + 1}")
+                    metrics.record_ai_timeout()
+                    if attempt < config.ai_max_retries - 1:
+                        await asyncio.sleep(config.ai_retry_delay_seconds)
+                except Exception as exc:
+                    logger.warning(f"Groq failed on attempt {attempt + 1}: {exc}")
+                    metrics.record_ai_error(provider="groq")
+                    if attempt < config.ai_max_retries - 1:
+                        await asyncio.sleep(config.ai_retry_delay_seconds)
 
+        # Try Gemini
         if self._gemini is not None:
             try:
+                logger.info("Attempting Gemini request")
                 text = await self._gemini.get_response(prompt, history)
+                latency_ms = (time.time() - start_time) * 1000
+                metrics.record_ai_request(latency_ms, provider="gemini")
                 self._set_cached(key, text)
                 return text
             except Exception as exc:
-                logger.warning("Gemini also failed: %s", exc)
+                logger.warning(f"Gemini also failed: {exc}")
+                metrics.record_ai_error(provider="gemini")
 
+        logger.error("All AI providers failed")
         return FALLBACK_MESSAGE

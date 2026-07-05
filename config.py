@@ -64,13 +64,24 @@ class Config:
 
     # AI tuning
     groq_model: str = "openai/gpt-oss-20b"
-    gemini_model: str = "gemini-2.5-flash-lite"
+    gemini_model: str = "gemini-1.5-flash"  # ✓ Fixed from gemini-2.5-flash-lite
     groq_timeout_seconds: int = 8
     ai_cache_ttl_seconds: int = 60
     history_limit: int = 5
+    
+    # Retry policy
+    ai_max_retries: int = 2
+    ai_retry_delay_seconds: float = 1.0
 
     default_mute_minutes: int = 60
     max_warns_before_ban: int = 3
+    
+    # Cleanup policy
+    history_retention_days: int = 30
+    group_log_retention_days: int = 7
+    
+    # Redis (optional)
+    redis_url: str = ""
 
 
 def load_config() -> Config:
@@ -86,6 +97,7 @@ def load_config() -> Config:
     admin_ids = _parse_int_list(os.getenv("ADMIN_IDS", ""))
     trigger_keywords = _parse_str_list(os.getenv("TRIGGER_KEYWORDS", ""))
     db_path = os.getenv("DB_PATH", "bot_database.sqlite3").strip()
+    redis_url = os.getenv("REDIS_URL", "").strip()
 
     return Config(
         bot_token=bot_token,
@@ -94,6 +106,7 @@ def load_config() -> Config:
         admin_ids=admin_ids,
         trigger_keywords=trigger_keywords,
         db_path=db_path,
+        redis_url=redis_url,
     )
 
 
